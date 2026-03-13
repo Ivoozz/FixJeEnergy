@@ -20,7 +20,7 @@ logger = logging.getLogger("FixJeEnergy")
 
 OPTIONS_PATH = "/data/options.json"
 SUPERVISOR_TOKEN = os.getenv("SUPERVISOR_TOKEN")
-VERSION = "1.3.2"
+VERSION = "1.4.0"
 
 class State:
     def __init__(self):

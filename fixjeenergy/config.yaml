@@ -1,7 +1,7 @@
 name: "FixJeEnergy"
-version: "1.3.2"
+version: "1.4.0"
 slug: "fixjeenergy"
-description: "Professional energy management for home batteries with 6-program control."
+description: "Professional energy management with advanced multi-array solar modeling."
 url: "https://github.com/Ivoozz/FixJeEnergy"
 arch:
   - aarch64
@@ -21,6 +21,15 @@ options:
   meteoserver_api: ""
   soc_sensor_entity: "sensor.battery_soc"
   solar_power_entities: []
+  solar_arrays:
+    - name: "Oost"
+      kwp: 3.0
+      tilt: 35
+      azimuth: 90
+    - name: "West"
+      kwp: 3.0
+      tilt: 35
+      azimuth: 270
   battery_control_entity: ""
   strategy: "0_on_the_meter"
   test_mode: true
@@ -33,6 +42,11 @@ schema:
   soc_sensor_entity: "str"
   solar_power_entities:
     - "str?"
+  solar_arrays:
+    - name: "str"
+      kwp: "float"
+      tilt: "int"
+      azimuth: "int"
   battery_control_entity: "str?"
   strategy: "list(0_on_the_meter|maximum_profit)"
   test_mode: "bool"
