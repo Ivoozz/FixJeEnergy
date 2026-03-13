@@ -20,6 +20,7 @@ logger = logging.getLogger("FixJeEnergy")
 
 OPTIONS_PATH = "/data/options.json"
 SUPERVISOR_TOKEN = os.getenv("SUPERVISOR_TOKEN")
+VERSION = "1.3.1"
 
 class State:
     def __init__(self):
@@ -98,6 +99,7 @@ async def index():
 async def get_forecast(): return JSONResponse(content=app_state.forecast_data)
 
 async def main():
+    logger.info(f"FixJeEnergy v{VERSION} Starting")
     asyncio.create_task(run_optimization_loop())
     config = uvicorn.Config(app, host="0.0.0.0", port=8000, log_level="info")
     server = uvicorn.Server(config)
