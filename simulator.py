@@ -1,67 +1,75 @@
 import logging
+import asyncio
+import aiohttp
 from datetime import datetime, timedelta
 from strategy import EnergyStrategy
 
 logger = logging.getLogger("FixJeEnergy.Simulator")
 
 class MockData:
-    """Helper class to structure mock data for the strategy."""
+    """Structure to feed real data points into the strategy engine during simulation."""
     def __init__(self, soc, solar, prices, forecast):
         self.battery_soc = soc
         self.total_solar_power = solar
         self.market_prices = prices
         self.solar_forecast = forecast
 
-def run_24h_simulation(config):
-    """Generates 24 hours of mock data and tests the strategy."""
-    logger.info("--- STARTING INTERNAL 24H SIMULATION ---")
+async def run_24h_real_data_simulation(config, live_data_provider):
+    """
+    Fetches real API data and simulates battery behavior for the next 24 hours.
+    live_data_provider is a dictionary containing fetched prices and forecast.
+    """
+    logger.info("--- STARTING 24H REAL-DATA SIMULATION ---")
     strategy_name = config.get("strategy", "0_on_the_meter")
-    logger.info(f"Target Strategy: {strategy_name}")
-
-    # 1. Generate Realistic Mock Nordpool Prices (Night low, morning peak, afternoon low, evening peak)
-    mock_prices = []
-    base_time = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
     
-    price_pattern = [0.15, 0.14, 0.12, 0.12, 0.13, 0.18, 0.25, 0.30, 0.28, 0.22, 0.18, 0.15, 
-                     0.12, 0.11, 0.12, 0.16, 0.22, 0.35, 0.38, 0.32, 0.25, 0.20, 0.18, 0.16]
+    real_prices = live_data_provider.get("prices", [])
+    real_forecast = live_data_provider.get("forecast", [])
+
+    if not real_prices:
+        logger.error("No real price data available for simulation!")
+        return
+
+    current_soc = 20.0 # Starting SOC for simulation
     
-    for h in range(24):
-        time = base_time + timedelta(hours=h)
-        mock_prices.append({"time": time.isoformat(), "price_kwh": price_pattern[h]})
+    logger.info(f"{'Hour':<6} | {'Price/kWh':<10} | {'Cloud %':<8} | {'Sim SOC':<6} | {'Decision'}")
+    logger.info("-" * 60)
 
-    # 2. Generate Mock Weather Forecast (Cloudy Day scenario)
-    mock_forecast = []
-    for h in range(48): # 2-day forecast
-        mock_forecast.append({"wolk": 85}) # 85% cloud cover
-
-    current_soc = 20.0 # Starting SOC
-    
-    logger.info(f"{'Hour':<6} | {'Price':<8} | {'Solar':<8} | {'SOC':<6} | {'Decision'}")
-    logger.info("-" * 50)
-
-    for h in range(24):
-        # Simulate solar production (Bell curve peak at 13:00)
-        solar_now = 0.0
-        if 7 <= h <= 19:
-            # Simple parabola for solar production
-            solar_now = max(0, -50 * (h - 13)**2 + 2000)
+    # We simulate for the number of prices we have (usually 24-48)
+    for i, price_point in enumerate(real_prices[:24]):
+        # Extract data for this specific 'future' hour
+        price = price_point['price_kwh']
+        timestamp = datetime.fromisoformat(price_point['time'].replace("Z", "+00:00"))
+        hour = timestamp.hour
         
-        data = MockData(current_soc, solar_now, mock_prices, mock_forecast)
+        # Get cloud cover for this hour from the real forecast
+        cloud_cover = 50 # Default if forecast is shorter than prices
+        if i < len(real_forecast):
+            cloud_cover = int(real_forecast[i].get("wolk", 50))
+
+        # Simulate solar production based on real cloud cover (simplified model)
+        # Max 4000W at clear sky (0% cloud) at 13:00
+        solar_potential = 0.0
+        if 7 <= hour <= 19:
+            base_solar = max(0, -100 * (hour - 13)**2 + 4000)
+            solar_now = base_solar * ((100 - cloud_cover) / 100)
+        else:
+            solar_now = 0.0
         
-        # Determine action
+        # Create data object for this simulation step
+        data = MockData(current_soc, solar_now, real_prices, real_forecast)
+        
+        # Strategy decision
         action = EnergyStrategy.decide_action(config, data)
         
-        # Simulate battery state change based on action
+        # Simulate SOC impact
         if action == "CHARGE":
-            current_soc = min(100, current_soc + 15) # +15% per hour charging
+            current_soc = min(100, current_soc + 20) # Assume 20% charge per hour
         elif action == "DISCHARGE":
-            current_soc = max(0, current_soc - 20) # -20% per hour discharging
-        elif solar_now > 500:
-            current_soc = min(100, current_soc + 5) # Slow solar charge
+            current_soc = max(0, current_soc - 25) # Assume 25% discharge per hour
+        elif solar_now > 1000:
+            current_soc = min(100, current_soc + 10) # Solar charging
             
-        price = mock_prices[h]['price_kwh']
-        logger.info(f"{h:02d}:00  | €{price:.2f} | {int(solar_now):>5}W | {int(current_soc):>3}% | {action}")
+        logger.info(f"{hour:02d}:00  | €{price:.3f}   | {cloud_cover:>7}% | {int(current_soc):>5}% | {action}")
 
-    logger.info("-" * 50)
-    logger.info("--- SIMULATION COMPLETED ---")
-    logger.info("Review the log above to verify strategy behavior.")
+    logger.info("-" * 60)
+    logger.info("--- REAL-DATA SIMULATION COMPLETED ---")
