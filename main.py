@@ -54,10 +54,73 @@ async def get_ha_state(session, entity_id):
         logger.error(f"Error fetching {entity_id}: {e}")
         return 0.0
 
-async def set_ha_state(session, entity_id, action):
-    """Placeholder for sending the control command back to HA."""
-    # This will be expanded in the next step
-    logger.info(f"SETTING {entity_id} to {action}")
+async def update_status_sensor(session, config, data, action):
+    """Updates a virtual sensor in HA with the current status and attributes."""
+    url = "http://supervisor/core/api/states/sensor.fixjeenergy_status"
+    headers = {"Authorization": f"Bearer {SUPERVISOR_TOKEN}", "Content-Type": "application/json"}
+    
+    # Extract cheap/expensive hours for attributes
+    sorted_prices = sorted(data.market_prices[:24], key=lambda x: x['price_kwh'])
+    cheap = [datetime.fromisoformat(p['time']).hour for p in sorted_prices[:3]]
+    expensive = [datetime.fromisoformat(p['time']).hour for p in sorted_prices[-3:]]
+
+    payload = {
+        "state": action,
+        "attributes": {
+            "strategy": config.get("strategy"),
+            "test_mode": config.get("test_mode"),
+            "battery_soc": data.battery_soc,
+            "solar_power": data.total_solar_power,
+            "cheapest_hours": cheap,
+            "expensive_hours": expensive,
+            "last_update": datetime.now().isoformat(),
+            "friendly_name": "FixJeEnergy Control Status",
+            "icon": "mdi:battery-charging" if action == "CHARGE" else "mdi:battery-arrow-down" if action == "DISCHARGE" else "mdi:battery"
+        }
+    }
+    
+    try:
+        async with session.post(url, headers=headers, json=payload) as resp:
+            if resp.status in [200, 201]:
+                logger.info("Feedback sensor updated in HA Dashboard.")
+            else:
+                logger.error(f"Failed to update feedback sensor: HTTP {resp.status}")
+    except Exception as e:
+        logger.error(f"Error updating status sensor: {e}")
+
+async def set_battery_mode(session, config, action):
+    """Safely executes the battery command based on test_mode."""
+    entity_id = config.get("battery_control_entity")
+    if not entity_id:
+        logger.error("No battery_control_entity configured!")
+        return
+
+    test_mode = config.get("test_mode", True)
+    
+    if test_mode:
+        logger.info(f"--- TEST MODE ACTIVE ---")
+        logger.info(f"Would have sent [{action}] to [{entity_id}]")
+        return
+
+    # Real execution logic
+    # We assume the entity is a select or a custom service based on your specific inverter.
+    # Standard approach: call a service to set the mode.
+    domain = entity_id.split(".")[0]
+    
+    # Mapping actions to standard HA service calls (adjust based on your specific integration)
+    url = f"http://supervisor/core/api/services/select/select_option"
+    payload = {"entity_id": entity_id, "option": action}
+    
+    headers = {"Authorization": f"Bearer {SUPERVISOR_TOKEN}", "Content-Type": "application/json"}
+    
+    try:
+        async with session.post(url, headers=headers, json=payload) as resp:
+            if resp.status == 200:
+                logger.info(f"Successfully sent {action} command to {entity_id}")
+            else:
+                logger.error(f"Failed to send command: HTTP {resp.status}")
+    except Exception as e:
+        logger.error(f"Error during battery control: {e}")
 
 async def fetch_nordpool_prices():
     """Fetch electricity prices for NL from Nordpool."""
@@ -94,7 +157,7 @@ async def fetch_meteoserver_data(session, api_key):
     return {"solar": [], "cloud": 0}
 
 async def run_optimization_cycle():
-    """The main brain loop."""
+    """The complete brain loop with execution and feedback."""
     logger.info("--- Starting Optimization Cycle ---")
     
     if not os.path.exists(OPTIONS_PATH):
@@ -124,11 +187,11 @@ async def run_optimization_cycle():
         action = EnergyStrategy.decide_action(config, data)
         logger.info(f"STRATEGY DECISION: {action}")
 
-        # 3. Execution (if not in test mode)
-        if config.get("test_mode"):
-            logger.info(f"[TEST MODE] Would have sent {action} to {config.get('battery_control_entity')}")
-        else:
-            await set_ha_state(session, config.get("battery_control_entity"), action)
+        # 3. Execution
+        await set_battery_mode(session, config, action)
+        
+        # 4. Feedback to HA Dashboard
+        await update_status_sensor(session, config, data, action)
 
     logger.info("--- Cycle Completed ---")
 
