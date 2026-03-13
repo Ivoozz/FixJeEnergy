@@ -1,7 +1,7 @@
 name: "FixJeEnergy"
-version: "1.2.0"
+version: "1.3.0"
 slug: "fixjeenergy"
-description: "Professional energy management for home batteries with internal dashboard."
+description: "Professional energy management for home batteries with 6-program control."
 url: "https://github.com/Ivoozz/FixJeEnergy"
 arch:
   - aarch64
@@ -25,12 +25,18 @@ options:
   strategy: "0_on_the_meter"
   test_mode: true
   run_internal_simulation: false
+  prog_times: ["number.prog1_time", "number.prog2_time", "number.prog3_time", "number.prog4_time", "number.prog5_time", "number.prog6_time"]
+  prog_socs: ["number.prog1_soc", "number.prog2_soc", "number.prog3_soc", "number.prog4_soc", "number.prog5_soc", "number.prog6_soc"]
+  prog_grid_charges: ["switch.prog1_grid_charge", "switch.prog2_grid_charge", "switch.prog3_grid_charge", "switch.prog4_grid_charge", "switch.prog5_grid_charge", "switch.prog6_grid_charge"]
 schema:
   meteoserver_api: "str"
   soc_sensor_entity: "str"
   solar_power_entities:
     - "str?"
-  battery_control_entity: "str"
+  battery_control_entity: "str?"
   strategy: "list(0_on_the_meter|maximum_profit)"
   test_mode: "bool"
   run_internal_simulation: "bool"
+  prog_times: ["str"]
+  prog_socs: ["str"]
+  prog_grid_charges: ["str"]
