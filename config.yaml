@@ -1,5 +1,5 @@
 name: "FixJeEnergy"
-version: "1.0.0"
+version: "1.1.0"
 slug: "fixjeenergy"
 description: "Professional energy management for home batteries via REST API."
 url: "https://github.com/Ivoozz/FixJeEnergy"
@@ -19,6 +19,7 @@ options:
   battery_control_entity: ""
   strategy: "0_on_the_meter"
   test_mode: true
+  run_internal_simulation: false
 schema:
   meteoserver_api: "str"
   soc_sensor_entity: "str"
@@ -27,3 +28,4 @@ schema:
   battery_control_entity: "str"
   strategy: "list(0_on_the_meter|maximum_profit)"
   test_mode: "bool"
+  run_internal_simulation: "bool"
