@@ -1,0 +1,29 @@
+name: "FixJeEnergy"
+version: "1.0.0"
+slug: "fixjeenergy"
+description: "Professional energy management for home batteries via REST API."
+url: "https://github.com/Ivoozz/FixJeEnergy"
+arch:
+  - aarch64
+  - amd64
+  - armv7
+  - i386
+startup: "services"
+boot: "auto"
+hassio_api: true
+hassio_role: manager
+options:
+  meteoserver_api: ""
+  soc_sensor_entity: "sensor.battery_soc"
+  solar_power_entities: []
+  battery_control_entity: ""
+  strategy: "0_on_the_meter"
+  test_mode: true
+schema:
+  meteoserver_api: "str"
+  soc_sensor_entity: "str"
+  solar_power_entities:
+    - "str?"
+  battery_control_entity: "str"
+  strategy: "list(0_on_the_meter|maximum_profit)"
+  test_mode: "bool"
