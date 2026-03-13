@@ -1,18 +1,9 @@
 # Changelog
 
+## 1.3.2
+- **Feature**: Implemented **Smart Dynamic Slot Mapping**. The 6 inverter programs are now dynamically assigned to the most critical transition points in the 24h forecast.
+- **Improvement**: Enhanced inverter sync logic to prioritize immediate state changes.
+- **Maintenance**: Fully synchronized all version fields to 1.3.2.
+
 ## 1.3.1
 - **Fix**: Synchronized all version fields to ensure proper Home Assistant update notifications.
-
-## 1.3.0
-- **Feature**: Streamlined 6-program configuration with lists for times, SOCs, and grid charging.
-- **Improvement**: Enhanced direct Home Assistant inverter control logic.
-
-## 1.2.0
-- **Feature**: Integrated FastAPI web server and Ingress dashboard with Chart.js visualization.
-
-## 1.1.0
-- **Feature**: Real-data simulation engine integrated.
-- **Improvement**: Structured for Home Assistant Add-on Store compatibility.
-
-## 1.0.0
-- Initial release.
