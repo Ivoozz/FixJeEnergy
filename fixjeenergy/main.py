@@ -7,6 +7,10 @@ import sys
 from datetime import datetime, timedelta
 import pytz
 from nordpool import elspot
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+import uvicorn
 
 # Local imports
 from strategy import EnergyStrategy
@@ -18,6 +22,16 @@ logger = logging.getLogger("FixJeEnergy")
 OPTIONS_PATH = "/data/options.json"
 SUPERVISOR_TOKEN = os.getenv("SUPERVISOR_TOKEN")
 
+# Application State
+class State:
+    def __init__(self):
+        self.forecast_data = []
+        self.last_update = None
+        self.config = {}
+
+app_state = State()
+app = FastAPI()
+
 class EnergyData:
     def __init__(self):
         self.battery_soc = 0.0
@@ -25,76 +39,89 @@ class EnergyData:
         self.market_prices = []
         self.solar_forecast = []
 
-async def update_ha_sensor(session, sensor_id, state, attributes):
-    """Universal function to update HA sensor states/attributes."""
-    url = f"http://supervisor/core/api/states/{sensor_id}"
-    headers = {"Authorization": f"Bearer {SUPERVISOR_TOKEN}", "Content-Type": "application/json"}
-    payload = {"state": state, "attributes": attributes}
-    try:
-        async with session.post(url, headers=headers, json=payload) as resp:
-            if resp.status not in [200, 201]:
-                logger.error(f"Error updating {sensor_id}: {resp.status}")
-    except Exception as e:
-        logger.error(f"Failed to push sensor {sensor_id}: {e}")
-
-async def fetch_data(session, config):
+async def fetch_ha_data(session, config):
     data = EnergyData()
     # Fetch SOC
-    url = f"http://supervisor/core/api/states/{config.get('soc_sensor_entity')}"
-    async with session.get(url, headers={"Authorization": f"Bearer {SUPERVISOR_TOKEN}"}) as r:
-        if r.status == 200:
-            js = await r.json()
-            data.battery_soc = float(js.get("state", 0))
+    try:
+        url = f"http://supervisor/core/api/states/{config.get('soc_sensor_entity')}"
+        async with session.get(url, headers={"Authorization": f"Bearer {SUPERVISOR_TOKEN}"}) as r:
+            if r.status == 200:
+                js = await r.json()
+                data.battery_soc = float(js.get("state", 0))
+    except Exception as e:
+        logger.error(f"Error fetching SOC: {e}")
     
     # Nordpool
-    prices_elspot = elspot.Prices(currency='EUR')
-    raw = prices_elspot.hourly(areas=['NL'])
-    data.market_prices = sorted([{"time": e['start'].isoformat(), "price_kwh": float(e['value'])/1000} for e in raw['areas']['NL']['values']], key=lambda x: x["time"])
+    try:
+        prices_elspot = elspot.Prices(currency='EUR')
+        raw = prices_elspot.hourly(areas=['NL'])
+        data.market_prices = sorted([{"time": e['start'].isoformat(), "price_kwh": float(e['value'])/1000} for e in raw['areas']['NL']['values']], key=lambda x: x["time"])
+    except Exception as e:
+        logger.error(f"Error fetching Nordpool: {e}")
     
     # Meteoserver
     api_key = config.get("meteoserver_api")
     if api_key:
-        url = f"https://data.meteoserver.nl/api/uurverwachting.php?key={api_key}&locatie=Sommelsdijk"
-        async with session.get(url) as r:
-            if r.status == 200:
-                js = await r.json()
-                data.solar_forecast = js.get("data", [])
+        try:
+            url = f"https://data.meteoserver.nl/api/uurverwachting.php?key={api_key}&locatie=Sommelsdijk"
+            async with session.get(url) as r:
+                if r.status == 200:
+                    js = await r.json()
+                    data.solar_forecast = js.get("data", [])
+        except Exception as e:
+            logger.error(f"Error fetching Meteoserver: {e}")
     
     return data
 
-async def run_cycle():
-    logger.info("Cycle start...")
-    with open(OPTIONS_PATH, 'r') as f: config = json.load(f)
-    
-    async with aiohttp.ClientSession() as session:
-        data = await fetch_data(session, config)
+async def run_optimization_loop():
+    """Background task for the 15-minute control cycle."""
+    while True:
+        logger.info("Starting optimization cycle...")
+        try:
+            if os.path.exists(OPTIONS_PATH):
+                with open(OPTIONS_PATH, 'r') as f:
+                    app_state.config = json.load(f)
+            
+            async with aiohttp.ClientSession() as session:
+                data = await fetch_ha_data(session, app_state.config)
+                current_action, plan = EnergyStrategy.calculate_plan(app_state.config, data)
+                
+                # Update global state for web UI
+                app_state.forecast_data = plan
+                app_state.last_update = datetime.now()
+                
+                logger.info(f"Cycle completed. Action: {current_action}")
+        except Exception as e:
+            logger.error(f"Error in optimization loop: {e}")
         
-        # Calculate Plan
-        current_action, plan = EnergyStrategy.calculate_plan(config, data)
-        
-        # 1. Update Status Sensor
-        await update_ha_sensor(session, "sensor.fixjeenergy_status", current_action, {
-            "strategy": config.get("strategy"),
-            "battery_soc": data.battery_soc,
-            "friendly_name": "FixJeEnergy Action"
-        })
-        
-        # 2. Update Forecast Sensor
-        await update_ha_sensor(session, "sensor.fixjeenergy_forecast", "Active", {
-            "forecast": plan,
-            "friendly_name": "FixJeEnergy 24h Plan",
-            "unit_of_measurement": "Plan",
-            "icon": "mdi:chart-timeline-variant"
-        })
-        
-        logger.info(f"Action: {current_action}. Forecast updated with {len(plan)} points.")
+        await asyncio.sleep(900)
+
+# --- Web API Endpoints ---
+
+@app.get("/", response_class=HTMLResponse)
+async def serve_index():
+    with open("index.html", "r") as f:
+        return f.read()
+
+@app.get("/api/forecast")
+async def get_forecast():
+    return JSONResponse(content=app_state.forecast_data)
+
+@app.get("/api/status")
+async def get_status():
+    return {
+        "last_update": app_state.last_update.isoformat() if app_state.last_update else None,
+        "strategy": app_state.config.get("strategy")
+    }
 
 async def main():
-    logger.info("FixJeEnergy Started")
-    while True:
-        try: await run_cycle()
-        except Exception as e: logger.error(f"Loop error: {e}")
-        await asyncio.sleep(900)
+    # Start the optimization loop in the background
+    asyncio.create_task(run_optimization_loop())
+    
+    # Start the web server
+    config = uvicorn.Config(app, host="0.0.0.0", port=8000, log_level="info")
+    server = uvicorn.Server(config)
+    await server.serve()
 
 if __name__ == "__main__":
     asyncio.run(main())

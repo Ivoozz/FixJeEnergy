@@ -1,7 +1,7 @@
 name: "FixJeEnergy"
-version: "1.1.0"
+version: "1.2.0"
 slug: "fixjeenergy"
-description: "Professional energy management for home batteries via REST API."
+description: "Professional energy management for home batteries with internal dashboard."
 url: "https://github.com/Ivoozz/FixJeEnergy"
 arch:
   - aarch64
@@ -14,6 +14,9 @@ init: false
 hassio_api: true
 hassio_role: manager
 ingress: true
+ingress_port: 8000
+panel_icon: "mdi:battery-charging"
+panel_title: "FixJeEnergy"
 options:
   meteoserver_api: ""
   soc_sensor_entity: "sensor.battery_soc"

@@ -12,14 +12,16 @@ RUN apk add --no-cache \
 RUN pip install --no-cache-dir --break-system-packages \
     aiohttp \
     nordpool \
-    pytz
+    pytz \
+    fastapi \
+    uvicorn \
+    jinja2
 
 # Set working directory
-WORKDIR /data
+WORKDIR /app
 
 # Copy application files
-COPY main.py /
-COPY run.sh /
-RUN chmod a+x /run.sh
+COPY . .
+RUN chmod a+x run.sh
 
-CMD [ "/run.sh" ]
+CMD [ "./run.sh" ]

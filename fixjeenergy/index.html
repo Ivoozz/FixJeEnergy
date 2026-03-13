@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FixJeEnergy Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #111827; color: white; }
+        .chart-container { position: relative; height: 60vh; width: 100%; }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <div class="max-w-6xl mx-auto">
+        <header class="flex justify-between items-center mb-8 border-b border-gray-700 pb-4">
+            <div>
+                <h1 class="text-3xl font-bold text-emerald-500">⚡ FixJeEnergy</h1>
+                <p class="text-gray-400">Batterij Optimalisatie Planning (Volgende 24u)</p>
+            </div>
+            <div id="status-badge" class="px-4 py-2 rounded-full bg-gray-800 text-sm font-medium border border-gray-600">
+                Laden...
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div class="bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-lg">
+                <p class="text-gray-400 text-sm uppercase font-semibold">Huidige SOC</p>
+                <h2 id="current-soc" class="text-4xl font-bold mt-2">--%</h2>
+            </div>
+            <div class="bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-lg border-l-4 border-l-emerald-500">
+                <p class="text-gray-400 text-sm uppercase font-semibold">Geplande Actie</p>
+                <h2 id="planned-action" class="text-4xl font-bold mt-2 text-emerald-400">---</h2>
+            </div>
+            <div class="bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-lg">
+                <p class="text-gray-400 text-sm uppercase font-semibold">Regio</p>
+                <h2 class="text-4xl font-bold mt-2">NL</h2>
+            </div>
+        </div>
+
+        <div class="bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-lg">
+            <div class="chart-container">
+                <canvas id="forecastChart"></canvas>
+            </div>
+        </div>
+        
+        <footer class="mt-8 text-center text-gray-500 text-sm">
+            Gegevens worden elke 15 minuten automatisch ververst.
+        </footer>
+    </div>
+
+    <script>
+        async function updateDashboard() {
+            try {
+                const response = await fetch('./api/forecast');
+                const data = await response.json();
+                
+                if (!data || data.length === 0) return;
+
+                // Update Overview
+                const current = data[0];
+                document.getElementById('current-soc').innerText = current.expected_soc + '%';
+                document.getElementById('planned-action').innerText = current.planned_action;
+                document.getElementById('status-badge').innerText = 'Systeem Actief';
+                document.getElementById('status-badge').classList.add('text-emerald-400', 'border-emerald-500');
+
+                const labels = data.map(item => {
+                    const d = new Date(item.datetime);
+                    return d.getHours() + ':00';
+                });
+
+                const prices = data.map(item => item.price);
+                const solar = data.map(item => item.solar_forecast);
+                const soc = data.map(item => item.expected_soc);
+
+                const ctx = document.getElementById('forecastChart').getContext('2d');
+                
+                if (window.myChart) window.chartInstance.destroy();
+
+                window.chartInstance = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            {
+                                label: 'Accu SOC (%)',
+                                data: soc,
+                                borderColor: '#10b981',
+                                backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                                borderWidth: 3,
+                                fill: true,
+                                yAxisID: 'y',
+                                tension: 0.4
+                            },
+                            {
+                                label: 'Prijs (€/kWh)',
+                                data: prices,
+                                type: 'bar',
+                                backgroundColor: 'rgba(59, 130, 246, 0.4)',
+                                yAxisID: 'y1',
+                            },
+                            {
+                                label: 'Zon (W)',
+                                data: solar,
+                                type: 'line',
+                                borderColor: '#f59e0b',
+                                borderDash: [5, 5],
+                                borderWidth: 2,
+                                pointRadius: 0,
+                                yAxisID: 'y2',
+                                fill: false
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: { intersect: false, mode: 'index' },
+                        plugins: {
+                            legend: { labels: { color: 'white', font: { weight: 'bold' } } }
+                        },
+                        scales: {
+                            y: {
+                                type: 'linear',
+                                display: true,
+                                position: 'left',
+                                min: 0,
+                                max: 100,
+                                grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                                ticks: { color: '#10b981' },
+                                title: { display: true, text: 'SOC %', color: '#10b981' }
+                            },
+                            y1: {
+                                type: 'linear',
+                                display: true,
+                                position: 'right',
+                                grid: { drawOnChartArea: false },
+                                ticks: { color: '#3b82f6' },
+                                title: { display: true, text: 'Prijs €', color: '#3b82f6' }
+                            },
+                            y2: {
+                                type: 'linear',
+                                display: false, // Hide the axis but use it for scaling
+                                position: 'right',
+                                min: 0,
+                                max: 5000
+                            },
+                            x: {
+                                grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                                ticks: { color: 'white' }
+                            }
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error('Error fetching forecast:', error);
+                document.getElementById('status-badge').innerText = 'API Fout';
+                document.getElementById('status-badge').classList.add('text-red-400', 'border-red-500');
+            }
+        }
+
+        updateDashboard();
+        setInterval(updateDashboard, 60000); // Refresh every minute
+    </script>
+</body>
+</html>
