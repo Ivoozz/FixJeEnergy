@@ -1,0 +1,54 @@
+{
+  "configuration": {
+    "meteoserver_api": {
+      "name": "Meteoserver API Sleutel",
+      "description": "Je persoonlijke API-key van Meteoserver.nl voor de zonnevoorspelling."
+    },
+    "soc_sensor_entity": {
+      "name": "Batterij SOC Entiteit",
+      "description": "De sensor die het huidige laadpercentage van je accu aangeeft (bijv. sensor.battery_soc)."
+    },
+    "solar_power_entities": {
+      "name": "Zonnepaneel Vermogen Sensoren",
+      "description": "Lijst met sensoren die het huidige opgewekte vermogen in Watt aangeven."
+    },
+    "solar_arrays": {
+      "name": "Zonnepaneel Opstellingen",
+      "description": "Configureer hier je verschillende sets panelen (Oost/West/Zuid) voor een nauwkeurige voorspelling.",
+      "sections": {
+        "name": { "name": "Naam", "description": "Naam van de set (bijv. 'Dak Oost')." },
+        "kwp": { "name": "Capaciteit (kWp)", "description": "Het totale piekvermogen van deze set in kWp (bijv. 3.6)." },
+        "tilt": { "name": "Hellingshoek (graden)", "description": "De hoek van de panelen (0 = plat, 90 = verticaal)." },
+        "azimuth": { "name": "Oriëntatie (graden)", "description": "Richting van de panelen (90 = Oost, 180 = Zuid, 270 = West)." }
+      }
+    },
+    "battery_control_entity": {
+      "name": "Batterij Aansturing Entiteit",
+      "description": "De entiteit (meestal een select of switch) waarmee de modus van de omvormer wordt aangepast."
+    },
+    "strategy": {
+      "name": "Optimalisatie Strategie",
+      "description": "0_on_the_meter richt zich op eigen verbruik, maximum_profit richt zich op handelen met prijsschommelingen."
+    },
+    "test_mode": {
+      "name": "Test Modus",
+      "description": "Indien ingeschakeld, worden er geen echte commando's naar je omvormer gestuurd."
+    },
+    "run_internal_simulation": {
+      "name": "Draai Interne Simulatie",
+      "description": "Indien ingeschakeld, draait de add-on een 24-uurs test bij het opstarten en stopt daarna."
+    },
+    "prog_times": {
+      "name": "Inverter Tijd Registers",
+      "description": "Lijst van Home Assistant entiteiten (number) voor de 6 tijdslots van de omvormer."
+    },
+    "prog_socs": {
+      "name": "Inverter SOC Registers",
+      "description": "Lijst van Home Assistant entiteiten (number) voor de doelniveaus (%) van de 6 tijdslots."
+    },
+    "prog_grid_charges": {
+      "name": "Inverter Grid Charge Registers",
+      "description": "Lijst van Home Assistant entiteiten (switch) om laden vanaf het net in/uit te schakelen per slot."
+    }
+  }
+}
