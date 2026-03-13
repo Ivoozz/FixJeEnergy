@@ -2,5 +2,6 @@
 
 bashio::log.info "Starting FixJeEnergy Add-on..."
 
-# Start main application
-python3 /main.py
+# Start main application from the /app directory
+cd /app
+python3 main.py
