@@ -10,8 +10,10 @@ arch:
   - i386
 startup: "services"
 boot: "auto"
+init: false
 hassio_api: true
 hassio_role: manager
+ingress: true
 options:
   meteoserver_api: ""
   soc_sensor_entity: "sensor.battery_soc"
