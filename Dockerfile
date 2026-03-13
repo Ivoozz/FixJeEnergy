@@ -8,6 +8,12 @@ RUN apk add --no-cache \
     python3 \
     py3-pip
 
+# Install Python libraries
+RUN pip install --no-cache-dir --break-system-packages \
+    aiohttp \
+    nordpool \
+    pytz
+
 # Set working directory
 WORKDIR /data
 
